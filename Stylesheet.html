@@ -73,6 +73,7 @@ body.dark-mode {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  color: var(--text-primary);
 }
 
 .header-actions {
@@ -98,6 +99,8 @@ body.dark-mode {
   margin-bottom: 2rem;
   box-shadow: var(--shadow);
   transition: box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .card:hover {
@@ -262,6 +265,7 @@ body.dark-mode .icon-button:hover {
 .table-container {
   overflow-x: auto;
   margin-bottom: 1rem;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .table-responsive {
@@ -487,26 +491,105 @@ body.dark-mode .loans-table tbody tr:hover {
   min-width: 150px;
 }
 
-/* Responsive */
+/* Priority Score Badge */
+.priority-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.priority-score.high {
+  background-color: #ffebee;
+  color: #c62828;
+  border-color: #ef5350;
+}
+
+.priority-score.medium {
+  background-color: #fff3e0;
+  color: #e65100;
+  border-color: #ff9800;
+}
+
+.priority-score.low {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-color: #66bb6a;
+}
+
+body.dark-mode .priority-score.high {
+  background-color: rgba(239, 83, 80, 0.2);
+  color: #ef5350;
+}
+
+body.dark-mode .priority-score.medium {
+  background-color: rgba(255, 152, 0, 0.2);
+  color: #ff9800;
+}
+
+body.dark-mode .priority-score.low {
+  background-color: rgba(102, 187, 106, 0.2);
+  color: #66bb6a;
+}
+
+/* Action buttons in table */
+.action-buttons {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.action-buttons .icon-button {
+  padding: 0.25rem;
+  font-size: 1.125rem;
+}
+
+/* Responsive improvements */
+@media (max-width: 1024px) {
+  .main-content {
+    padding: 1.5rem 1rem;
+  }
+  
+  .header-title {
+    font-size: 1.25rem;
+  }
+}
+
 @media (max-width: 768px) {
   .header-content {
     flex-direction: column;
     gap: 1rem;
+    text-align: center;
+  }
+  
+  .header-title {
+    font-size: 1.125rem;
   }
   
   .controls-header {
     flex-direction: column;
     align-items: stretch;
+    text-align: center;
   }
   
   .controls-actions {
     flex-direction: column;
     width: 100%;
+    gap: 0.75rem;
   }
   
   .button {
     width: 100%;
     justify-content: center;
+    padding: 0.75rem 1rem;
   }
   
   .table-header {
@@ -517,6 +600,18 @@ body.dark-mode .loans-table tbody tr:hover {
   
   .sort-controls {
     flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .sort-controls .select-input {
+    width: 100%;
+    max-width: 200px;
+  }
+  
+  /* Mobile-optimized table */
+  .table-container {
+    margin: 0 -1rem;
+    padding: 0 1rem;
   }
   
   .loans-table {
@@ -525,15 +620,71 @@ body.dark-mode .loans-table tbody tr:hover {
   
   .loans-table th,
   .loans-table td {
-    padding: 0.5rem;
+    padding: 0.625rem 0.5rem;
+  }
+  
+  /* Hide less important columns on mobile */
+  .loans-table th:nth-child(3),
+  .loans-table td:nth-child(3),
+  .loans-table th:nth-child(5),
+  .loans-table td:nth-child(5) {
+    display: none;
+  }
+  
+  .modal {
+    padding: 0;
   }
   
   .modal-content {
     margin: 1rem;
+    max-height: 100vh;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .loan-form {
+    flex: 1;
+    overflow-y: auto;
   }
   
   .chart-container {
     height: 300px;
+  }
+  
+  .chart-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    text-align: center;
+  }
+  
+  .chart-controls {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .pagination-controls {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  
+  .pagination-controls .button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  /* Touch-friendly spacing */
+  .icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .switch-label {
+    padding: 0.5rem 0;
+  }
+  
+  .view-toggle {
+    width: 100%;
   }
 }
 
@@ -544,10 +695,120 @@ body.dark-mode .loans-table tbody tr:hover {
   
   .card {
     padding: 1rem;
+    border-radius: 0;
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+  }
+  
+  .section-title {
+    font-size: 1.125rem;
+  }
+  
+  /* Stack table data vertically on very small screens */
+  .loans-table {
+    font-size: 0.8125rem;
+  }
+  
+  .loans-table th,
+  .loans-table td {
+    padding: 0.5rem 0.375rem;
+  }
+  
+  /* Only show essential columns */
+  .loans-table th:nth-child(4),
+  .loans-table td:nth-child(4) {
+    display: none;
+  }
+  
+  .loan-name {
+    font-size: 0.875rem;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .modal-content {
+    margin: 0;
+    border-radius: 0;
+    height: 100vh;
+    max-height: 100vh;
+  }
+  
+  .modal-header {
+    padding: 1rem;
+  }
+  
+  .modal-header h3 {
+    font-size: 1.125rem;
+  }
+  
+  .loan-form {
+    padding: 1rem;
+  }
+  
+  .text-input,
+  .select-input {
+    padding: 0.625rem;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  .empty-state {
+    padding: 2rem 1rem;
+  }
+  
+  .snackbar {
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    transform: translateY(100px);
+  }
+  
+  .snackbar.show {
+    transform: translateY(0);
+  }
+}
+
+/* Improve touch targets for mobile */
+@media (hover: none) and (pointer: coarse) {
+  .button,
+  .icon-button,
+  .text-input,
+  .select-input {
+    min-height: 44px;
+  }
+  
+  .switch {
+    width: 52px;
+    height: 28px;
+  }
+  
+  .switch::before {
+    height: 24px;
+    width: 24px;
+  }
+}
+
+/* Print styles */
+@media print {
+  .header-actions,
+  .controls-section,
+  .chart-section,
+  .pagination-controls,
+  .action-buttons,
+  .modal,
+  .snackbar {
+    display: none !important;
+  }
+  
+  .card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
   }
   
   .loans-table {
-    font-size: 0.75rem;
+    font-size: 10pt;
   }
 }
 </style>

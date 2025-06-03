@@ -428,4 +428,92 @@ window.onclick = function(event) {
     closeLoanModal();
   }
 }
+
+// Mobile-specific enhancements
+document.addEventListener('DOMContentLoaded', function() {
+  // Add touch-friendly swipe to close modal
+  let touchStartY = 0;
+  const modal = document.getElementById('loanModal');
+  const modalContent = modal.querySelector('.modal-content');
+  
+  modalContent.addEventListener('touchstart', function(e) {
+    touchStartY = e.touches[0].clientY;
+  });
+  
+  modalContent.addEventListener('touchmove', function(e) {
+    const touchY = e.touches[0].clientY;
+    const deltaY = touchY - touchStartY;
+    
+    // If swiping down more than 100px, close modal
+    if (deltaY > 100) {
+      closeLoanModal();
+    }
+  });
+  
+  // Improve mobile table interactions
+  if (window.innerWidth <= 768) {
+    // Make table rows clickable on mobile
+    document.addEventListener('click', function(e) {
+      const row = e.target.closest('tr');
+      if (row && row.dataset.loanId && !e.target.closest('.action-buttons')) {
+        // Expand row to show actions on mobile
+        const currentExpanded = document.querySelector('tr.expanded');
+        if (currentExpanded && currentExpanded !== row) {
+          currentExpanded.classList.remove('expanded');
+        }
+        row.classList.toggle('expanded');
+      }
+    });
+  }
+  
+  // Handle orientation changes
+  window.addEventListener('orientationchange', function() {
+    // Redraw chart after orientation change
+    setTimeout(() => {
+      updateChart();
+    }, 300);
+  });
+  
+  // Improve form input experience on mobile
+  const formInputs = document.querySelectorAll('.text-input');
+  formInputs.forEach(input => {
+    // Prevent zoom on focus (iOS)
+    input.addEventListener('focus', function() {
+      if (window.innerWidth <= 768) {
+        document.querySelector('meta[name="viewport"]').setAttribute('content', 
+          'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0');
+      }
+    });
+    
+    input.addEventListener('blur', function() {
+      document.querySelector('meta[name="viewport"]').setAttribute('content', 
+        'width=device-width, initial-scale=1.0');
+    });
+  });
+});
+
+// Make chart responsive
+function makeChartResponsive() {
+  window.addEventListener('resize', debounce(function() {
+    if (loans.length > 0) {
+      updateChart();
+    }
+  }, 250));
+}
+
+// Debounce function for resize events
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Initialize responsive features
+makeChartResponsive();
 </script>
