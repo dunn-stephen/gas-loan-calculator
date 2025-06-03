@@ -1,0 +1,431 @@
+<script>
+// Global variables
+let loans = [];
+let currentPage = 1;
+let itemsPerPage = 5;
+let sortBy = 'priorityScore';
+let sortAscending = false;
+let isEditMode = false;
+let currentEditId = null;
+
+// Initialize Google Charts
+google.charts.load('current', {'packages':['corechart', 'bar']});
+google.charts.setOnLoadCallback(initialize);
+
+// Initialize the app
+function initialize() {
+  // Load user preferences
+  google.script.run
+    .withSuccessHandler(applyUserPreferences)
+    .withFailureHandler(handleError)
+    .getUserPreferences();
+  
+  // Load loans
+  loadLoans();
+  
+  // Set up event listeners
+  setupEventListeners();
+}
+
+// Set up all event listeners
+function setupEventListeners() {
+  // Theme toggle
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  
+  // Add loan button
+  document.getElementById('addLoanBtn').addEventListener('click', () => openLoanModal());
+  
+  // View toggle
+  document.getElementById('viewToggle').addEventListener('change', toggleView);
+  
+  // Sort controls
+  document.getElementById('sortSelect').addEventListener('change', (e) => {
+    sortBy = e.target.value;
+    loadLoans();
+  });
+  
+  document.getElementById('sortOrderBtn').addEventListener('click', () => {
+    sortAscending = !sortAscending;
+    const icon = document.querySelector('#sortOrderBtn .material-icons');
+    icon.textContent = sortAscending ? 'arrow_upward' : 'arrow_downward';
+    loadLoans();
+  });
+  
+  // Chart metric select
+  document.getElementById('chartMetricSelect').addEventListener('change', (e) => {
+    updateChart(e.target.value);
+    savePreference('chartMetric', e.target.value);
+  });
+  
+  // Loan form
+  document.getElementById('loanForm').addEventListener('submit', handleLoanSubmit);
+  
+  // Pagination
+  document.getElementById('prevPageBtn').addEventListener('click', () => changePage(-1));
+  document.getElementById('nextPageBtn').addEventListener('click', () => changePage(1));
+}
+
+// Load loans from server
+function loadLoans() {
+  showLoading(true);
+  
+  google.script.run
+    .withSuccessHandler((data) => {
+      loans = data;
+      if (sortBy) {
+        google.script.run
+          .withSuccessHandler((sortedData) => {
+            loans = sortedData;
+            displayLoans();
+            updateChart();
+            showLoading(false);
+          })
+          .withFailureHandler(handleError)
+          .sortLoans(sortBy, sortAscending);
+      } else {
+        displayLoans();
+        updateChart();
+        showLoading(false);
+      }
+    })
+    .withFailureHandler(handleError)
+    .getAllLoans();
+}
+
+// Display loans in table
+function displayLoans() {
+  const container = document.getElementById('loansTableContainer');
+  const isPaginated = document.getElementById('viewToggle').checked;
+  
+  if (loans.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <span class="material-icons">inbox</span>
+        <p>No loans added yet. Click "Add Loan" to get started.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  let displayLoans = loans;
+  if (isPaginated) {
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    displayLoans = loans.slice(start, end);
+    updatePagination();
+  }
+  
+  const table = createLoansTable(displayLoans);
+  container.innerHTML = table;
+  
+  // Add event listeners to action buttons
+  document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const loanId = e.target.closest('button').dataset.loanId;
+      editLoan(loanId);
+    });
+  });
+  
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const loanId = e.target.closest('button').dataset.loanId;
+      deleteLoan(loanId);
+    });
+  });
+}
+
+// Create loans table HTML
+function createLoansTable(loansToDisplay) {
+  return `
+    <div class="table-responsive">
+      <table class="loans-table">
+        <thead>
+          <tr>
+            <th>Loan Name</th>
+            <th class="text-right">Principal</th>
+            <th class="text-right">Rate (%)</th>
+            <th class="text-right">Term</th>
+            <th class="text-right">Monthly Payment</th>
+            <th class="text-right">Total Interest</th>
+            <th class="text-right">Priority Score</th>
+            <th class="text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${loansToDisplay.map(loan => `
+            <tr>
+              <td class="loan-name">${loan.name}</td>
+              <td class="text-right">${formatCurrency(loan.principal)}</td>
+              <td class="text-right">${loan.rate.toFixed(2)}%</td>
+              <td class="text-right">${loan.months} months</td>
+              <td class="text-right">${formatCurrency(loan.monthlyPayment)}</td>
+              <td class="text-right">${formatCurrency(loan.totalInterest)}</td>
+              <td class="text-right">${loan.priorityScore.toFixed(2)}</td>
+              <td class="text-center">
+                <button class="icon-button edit-btn" data-loan-id="${loan.id}" title="Edit loan">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="icon-button delete-btn" data-loan-id="${loan.id}" title="Delete loan">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr class="summary-row">
+            <td><strong>Total</strong></td>
+            <td class="text-right"><strong>${formatCurrency(loansToDisplay.reduce((sum, loan) => sum + loan.principal, 0))}</strong></td>
+            <td class="text-right">-</td>
+            <td class="text-right">-</td>
+            <td class="text-right"><strong>${formatCurrency(loansToDisplay.reduce((sum, loan) => sum + loan.monthlyPayment, 0))}</strong></td>
+            <td class="text-right"><strong>${formatCurrency(loansToDisplay.reduce((sum, loan) => sum + loan.totalInterest, 0))}</strong></td>
+            <td class="text-right">-</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
+}
+
+// Update chart
+function updateChart(metric) {
+  const chartMetric = metric || document.getElementById('chartMetricSelect').value;
+  
+  google.script.run
+    .withSuccessHandler((chartData) => {
+      drawChart(chartData);
+    })
+    .withFailureHandler(handleError)
+    .getChartData(chartMetric);
+}
+
+// Draw Google Chart
+function drawChart(chartData) {
+  const data = google.visualization.arrayToDataTable(chartData.data);
+  
+  const isDarkMode = document.body.classList.contains('dark-mode');
+  const textColor = isDarkMode ? '#e0e0e0' : '#333';
+  const backgroundColor = isDarkMode ? '#1a1a1a' : '#ffffff';
+  const gridlineColor = isDarkMode ? '#333' : '#e0e0e0';
+  
+  const options = {
+    title: chartData.title,
+    chartArea: { width: '70%', height: '70%' },
+    hAxis: {
+      textStyle: { color: textColor },
+      gridlines: { color: gridlineColor }
+    },
+    vAxis: {
+      textStyle: { color: textColor },
+      gridlines: { color: gridlineColor }
+    },
+    backgroundColor: backgroundColor,
+    titleTextStyle: { color: textColor },
+    legend: { position: 'none' },
+    bars: 'vertical',
+    colors: ['#2196f3']
+  };
+  
+  const chart = new google.visualization.ColumnChart(document.getElementById('chartContainer'));
+  chart.draw(data, options);
+}
+
+// Open loan modal
+function openLoanModal(loan = null) {
+  const modal = document.getElementById('loanModal');
+  const form = document.getElementById('loanForm');
+  const title = document.getElementById('modalTitle');
+  
+  if (loan) {
+    isEditMode = true;
+    currentEditId = loan.id;
+    title.textContent = 'Edit Loan';
+    document.getElementById('loanId').value = loan.id;
+    document.getElementById('loanName').value = loan.name;
+    document.getElementById('loanPrincipal').value = loan.principal;
+    document.getElementById('loanRate').value = loan.rate;
+    document.getElementById('loanMonths').value = loan.months;
+  } else {
+    isEditMode = false;
+    currentEditId = null;
+    title.textContent = 'Add New Loan';
+    form.reset();
+  }
+  
+  modal.style.display = 'flex';
+}
+
+// Close loan modal
+function closeLoanModal() {
+  document.getElementById('loanModal').style.display = 'none';
+  document.getElementById('loanForm').reset();
+  isEditMode = false;
+  currentEditId = null;
+}
+
+// Handle loan form submission
+function handleLoanSubmit(e) {
+  e.preventDefault();
+  
+  const loanData = {
+    name: document.getElementById('loanName').value,
+    principal: parseFloat(document.getElementById('loanPrincipal').value),
+    rate: parseFloat(document.getElementById('loanRate').value),
+    months: parseInt(document.getElementById('loanMonths').value)
+  };
+  
+  if (isEditMode) {
+    google.script.run
+      .withSuccessHandler(() => {
+        showSnackbar('Loan updated successfully');
+        closeLoanModal();
+        loadLoans();
+      })
+      .withFailureHandler(handleError)
+      .updateLoan(currentEditId, loanData);
+  } else {
+    google.script.run
+      .withSuccessHandler(() => {
+        showSnackbar('Loan added successfully');
+        closeLoanModal();
+        loadLoans();
+      })
+      .withFailureHandler(handleError)
+      .addLoan(loanData);
+  }
+}
+
+// Edit loan
+function editLoan(loanId) {
+  const loan = loans.find(l => l.id === loanId);
+  if (loan) {
+    openLoanModal(loan);
+  }
+}
+
+// Delete loan
+function deleteLoan(loanId) {
+  if (confirm('Are you sure you want to delete this loan?')) {
+    google.script.run
+      .withSuccessHandler(() => {
+        showSnackbar('Loan deleted successfully');
+        loadLoans();
+      })
+      .withFailureHandler(handleError)
+      .deleteLoan(loanId);
+  }
+}
+
+// Toggle theme
+function toggleTheme() {
+  const isDarkMode = document.body.classList.toggle('dark-mode');
+  const icon = document.querySelector('#themeToggle .material-icons');
+  icon.textContent = isDarkMode ? 'brightness_7' : 'brightness_4';
+  
+  savePreference('darkMode', isDarkMode);
+  
+  // Redraw chart with new theme
+  updateChart();
+}
+
+// Toggle view (regular/paginated)
+function toggleView() {
+  const isPaginated = document.getElementById('viewToggle').checked;
+  document.getElementById('paginationControls').style.display = isPaginated ? 'flex' : 'none';
+  currentPage = 1;
+  displayLoans();
+  savePreference('useVirtualized', isPaginated);
+}
+
+// Pagination functions
+function updatePagination() {
+  const totalPages = Math.ceil(loans.length / itemsPerPage);
+  const pageInfo = document.getElementById('pageInfo');
+  const prevBtn = document.getElementById('prevPageBtn');
+  const nextBtn = document.getElementById('nextPageBtn');
+  
+  pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+  prevBtn.disabled = currentPage === 1;
+  nextBtn.disabled = currentPage === totalPages;
+}
+
+function changePage(direction) {
+  currentPage += direction;
+  displayLoans();
+}
+
+// Apply user preferences
+function applyUserPreferences(preferences) {
+  // Dark mode
+  if (preferences.darkMode) {
+    document.body.classList.add('dark-mode');
+    document.querySelector('#themeToggle .material-icons').textContent = 'brightness_7';
+  }
+  
+  // View mode
+  document.getElementById('viewToggle').checked = preferences.useVirtualized;
+  if (preferences.useVirtualized) {
+    document.getElementById('paginationControls').style.display = 'flex';
+  }
+  
+  // Chart metric
+  document.getElementById('chartMetricSelect').value = preferences.chartMetric;
+}
+
+// Save preference
+function savePreference(key, value) {
+  google.script.run
+    .withFailureHandler(handleError)
+    .saveUserPreferences({ [key]: value });
+}
+
+// Show/hide loading state
+function showLoading(show) {
+  document.getElementById('loadingState').style.display = show ? 'flex' : 'none';
+  document.getElementById('dashboardContent').style.display = show ? 'none' : 'block';
+}
+
+// Show snackbar notification
+function showSnackbar(message, duration = 3000) {
+  const snackbar = document.getElementById('snackbar');
+  snackbar.textContent = message;
+  snackbar.classList.add('show');
+  
+  setTimeout(() => {
+    snackbar.classList.remove('show');
+  }, duration);
+}
+
+// Handle errors
+function handleError(error) {
+  console.error('Error:', error);
+  showLoading(false);
+  
+  const errorState = document.getElementById('errorState');
+  const errorMessage = document.getElementById('errorMessage');
+  
+  errorMessage.textContent = error.message || 'An unexpected error occurred';
+  errorState.style.display = 'flex';
+  document.getElementById('dashboardContent').style.display = 'none';
+}
+
+// Format currency
+function formatCurrency(value) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('loanModal');
+  if (event.target === modal) {
+    closeLoanModal();
+  }
+}
+</script>
